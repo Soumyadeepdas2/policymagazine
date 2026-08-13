@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Login — Policytells Portal</title>
+  
+  <link rel="stylesheet" href="../css/style.css">
+
+  <!-- Supabase JS Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+  <!-- Minimal Header -->
+  <header class="site-header">
+    <div class="container header-inner" style="justify-content: center;">
+      <a href="../index.html" class="logo-link">
+        <span class="logo">Policytells<span class="dot">.</span></span>
+      </a>
+    </div>
+  </header>
+
+  <!-- Login Card Workspace -->
+  <main class="reading-container" style="padding-top: 4rem; padding-bottom: 4rem;">
+    <div class="admin-card" style="max-width: 440px; margin: 0 auto; padding: 2.5rem; border-radius: 6px;">
+      <div style="text-align: center; margin-bottom: 2rem;">
+        <h2 style="font-family: var(--font-serif); font-size: 1.85rem; color: #FFFFFF; margin-bottom: 0.5rem;">EDITORIAL PORTAL</h2>
+        <p style="font-family: var(--font-ui); font-size: 0.75rem; color: var(--gold-primary); text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700;">
+          Authenticated Management System
+        </p>
+      </div>
+
+      <div id="login-alert" style="display:none;"></div>
+
+      <form id="admin-login-form">
+        <div class="form-group">
+          <label for="login-email" class="form-label">ADMIN EMAIL</label>
+          <input type="email" id="login-email" class="form-control" placeholder="editor@policytells.org" required autofocus>
+        </div>
+
+        <div class="form-group">
+          <label for="login-password" class="form-label">PASSWORD</label>
+          <input type="password" id="login-password" class="form-control" placeholder="••••••••••••" required>
+        </div>
+
+        <button type="submit" class="btn-submit" style="width: 100%; margin-top: 1rem;">
+          SIGN IN
+        </button>
+      </form>
+
+      <div style="margin-top: 2rem; padding-top: 1.25rem; border-top: 1px solid var(--border-subtle); font-family: var(--font-ui); font-size: 0.75rem; color: var(--text-muted); text-align: center;">
+        Protected by Supabase Auth & Row Level Security
+      </div>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-bottom-bar" style="padding-top: 0; border: none;">
+      <div>&copy; 2026 POLICYTELLS MAGAZINE. ALL RIGHTS RESERVED.</div>
+      <div>EDITORIAL MANAGEMENT PORTAL</div>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="../js/config.js"></script>
+  <script src="../js/admin.js"></script>
+</body>
+</html>

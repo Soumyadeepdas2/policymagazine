@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Article Editor — Policytells Portal</title>
+  
+  <link rel="stylesheet" href="../css/style.css">
+
+  <!-- Supabase JS Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+  <!-- Admin Header -->
+  <header class="site-header">
+    <div class="container header-inner">
+      <a href="../index.html" class="logo-link">
+        <span class="logo">Policytells<span class="dot">.</span></span>
+      </a>
+
+      <div style="display: flex; align-items: center; gap: 1rem;">
+        <span style="font-family: var(--font-ui); font-size: 0.8125rem; color: var(--gold-primary); font-weight: 700;" id="editor-heading">ARTICLE EDITOR</span>
+        <a href="index.html" class="btn-secondary" style="padding: 0.4rem 0.85rem;">← Dashboard</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Editor Workspace -->
+  <main class="reading-container" style="padding-top: 2rem; padding-bottom: 4rem;">
+
+    <div id="editor-alert" style="display:none;"></div>
+
+    <form id="article-editor-form" class="admin-card">
+
+      <div class="form-group">
+        <label for="article-title" class="form-label">ARTICLE TITLE *</label>
+        <input type="text" id="article-title" class="form-control" placeholder="e.g. The Future of Global Supply Chains" required style="font-size:1.1rem; font-weight:600;">
+      </div>
+
+      <div class="form-group">
+        <label for="article-slug" class="form-label">URL SLUG *</label>
+        <input type="text" id="article-slug" class="form-control" placeholder="the-future-of-global-supply-chains" required>
+        <small style="font-size:0.75rem; color:var(--text-muted); margin-top:0.25rem; display:block;">Used in clean URL: /article.html?slug=your-slug</small>
+      </div>
+
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.5rem;">
+        <div class="form-group">
+          <label for="article-category" class="form-label">CATEGORY *</label>
+          <select id="article-category" class="form-control" required style="background-color:var(--bg-card); color:#FFF;">
+            <!-- Injected dynamically by JS -->
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="article-author" class="form-label">AUTHOR NAME</label>
+          <input type="text" id="article-author" class="form-control" placeholder="e.g. Editorial Desk or Author Name">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="article-excerpt" class="form-label">ARTICLE EXCERPT / SUMMARY</label>
+        <textarea id="article-excerpt" class="form-control" style="min-height:80px;" placeholder="Brief 2-3 sentence summary displayed on magazine cards..."></textarea>
+      </div>
+
+      <div class="form-group">
+        <label for="article-content" class="form-label">ARTICLE BODY CONTENT *</label>
+        <textarea id="article-content" class="form-control" style="min-height:280px; font-family:var(--font-serif); font-size:1.05rem;" placeholder="Write or paste your article body text here. Blank lines separate paragraphs..." required></textarea>
+      </div>
+
+      <!-- ImageKit Upload Section -->
+      <div class="form-group" style="margin-top:2rem; padding-top:1.5rem; border-top:1px solid var(--border-subtle);">
+        <label class="form-label">COVER IMAGE UPLOAD (IMAGEKIT CDN)</label>
+        <p style="font-size:0.8125rem; color:var(--text-secondary); margin-bottom:0.75rem;">
+          Select a JPG, PNG, or WebP image file (Max 5 MB). Uploads directly to ImageKit CDN via short-lived serverless signature.
+        </p>
+
+        <div class="image-upload-box" onclick="document.getElementById('image-file-input').click();">
+          <svg style="width:32px; height:32px; margin:0 auto 0.5rem auto; color:var(--gold-primary);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+          </svg>
+          <div style="font-weight:700; font-size:0.9rem; color:#FFF;">Click to browse and upload image to ImageKit</div>
+          <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.25rem;">Supported formats: JPG, PNG, WebP (Max 5MB)</div>
+          <input type="file" id="image-file-input" accept="image/jpeg,image/png,image/webp" style="display:none;">
+        </div>
+
+        <div id="upload-status" style="display:none; margin-top:1rem;"></div>
+
+        <div style="margin-top:1rem;">
+          <label for="article-image-url" class="form-label">OR DIRECT IMAGE URL</label>
+          <input type="url" id="article-image-url" class="form-control" placeholder="https://ik.imagekit.io/... or external image URL">
+        </div>
+
+        <img id="image-preview" src="" alt="Cover Preview" class="preview-thumbnail" style="display:none;">
+      </div>
+
+      <!-- Publication Toggles -->
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.5rem; margin-top:2rem; padding-top:1.5rem; border-top:1px solid var(--border-subtle);">
+        <div class="toggle-group">
+          <label class="toggle-switch">
+            <input type="checkbox" id="article-published">
+            <span class="toggle-slider"></span>
+          </label>
+          <div>
+            <strong style="color:#FFF;">Published Status</strong>
+            <div style="font-size:0.75rem; color:var(--text-muted);">Visible to public readers</div>
+          </div>
+        </div>
+
+        <div class="toggle-group">
+          <label class="toggle-switch">
+            <input type="checkbox" id="article-featured">
+            <span class="toggle-slider"></span>
+          </label>
+          <div>
+            <strong style="color:#FFF;">Featured Story</strong>
+            <div style="font-size:0.75rem; color:var(--text-muted);">Highlighted in homepage hero section</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:2.5rem;">
+        <a href="index.html" class="btn-secondary">CANCEL</a>
+        <button type="submit" class="btn-submit" style="padding:0.75rem 2rem;">SAVE ARTICLE</button>
+      </div>
+
+    </form>
+  </main>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="container footer-bottom-bar" style="padding-top: 0; border: none;">
+      <div>&copy; 2026 POLICYTELLS MAGAZINE. ALL RIGHTS RESERVED.</div>
+      <div>EDITORIAL MANAGEMENT PORTAL</div>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="../js/config.js"></script>
+  <script src="../js/app.js"></script>
+  <script src="../js/admin.js"></script>
+</body>
+</html>
