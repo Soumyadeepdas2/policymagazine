@@ -556,8 +556,14 @@
         try {
           if (this.supabase) {
             const { error } = await this.supabase
-              .from('contact_messages')
-              .insert([{ name, email, subject, message, recipient: 'ithylene@zohomail.in', created_at: new Date().toISOString() }]);
+            .from('contact_messages')
+            .insert([{
+             name,
+             email,
+             subject,
+             message,
+             created_at: new Date().toISOString()
+           }]);
 
             if (error) throw error;
           } else {
