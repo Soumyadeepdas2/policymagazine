@@ -1,7 +1,7 @@
 /**
  * PolicyTells — Political & Public Policy Magazine Engine
  * Features live typewriter animation for TELLS, live footer vision typewriter ("WE BELIEVE IN ..."),
- * dynamic hero background image switching, category-based section rendering, and exact category navigation highlighting.
+ * mobile menu toggle, dynamic hero background image switching, category-based section rendering, and exact category navigation highlighting.
  */
 
 (function () {
@@ -47,6 +47,25 @@
           }
         } else if (href === currentPath || (currentPath === '' && href === 'index.html') || (currentPath === 'index.html' && href === 'index.html')) {
           link.classList.add('active');
+        }
+      });
+    },
+
+    // --- Mobile Menu Toggle Handler ---
+    initMobileMenu: function () {
+      const menuBtn = document.querySelector('.mobile-menu-btn');
+      const nav = document.querySelector('.header-nav');
+
+      if (!menuBtn || !nav) return;
+
+      menuBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        nav.classList.toggle('active');
+      });
+
+      document.addEventListener('click', (e) => {
+        if (nav.classList.contains('active') && !nav.contains(e.target) && !menuBtn.contains(e.target)) {
+          nav.classList.remove('active');
         }
       });
     },
@@ -579,6 +598,7 @@
 
   document.addEventListener('DOMContentLoaded', () => {
     window.PolicyTellsApp.initNavigation();
+    window.PolicyTellsApp.initMobileMenu();
     window.PolicyTellsApp.initFooterVisionTypewriter();
     window.PolicyTellsApp.initSearchModal();
 
