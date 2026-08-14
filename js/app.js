@@ -1,7 +1,8 @@
 /**
  * PolicyTells — Political & Public Policy Magazine Engine
  * Features live typewriter animation for TELLS, live footer vision typewriter ("WE BELIEVE IN ..."),
- * mobile menu toggle, dynamic hero background image switching, category-based section rendering, and exact category navigation highlighting.
+ * dynamic SEO metadata, canonical URLs, Schema.org Article JSON-LD,
+ * category-based section rendering, and exact category navigation highlighting.
  */
 
 (function () {
@@ -28,6 +29,76 @@
     supabase: supabaseClient,
     currentHeroIndex: 0,
     heroSlides: [],
+
+    // --- Dynamic SEO Helpers ---
+    setMeta: function (name, content) {
+      if (!content) return;
+      let el = document.querySelector(`meta[name="${name}"]`);
+      if (!el) {
+        el = document.createElement('meta');
+        el.setAttribute('name', name);
+        document.head.appendChild(el);
+      }
+      el.setAttribute('content', content);
+    },
+
+    setMetaProperty: function (property, content) {
+      if (!content) return;
+      let el = document.querySelector(`meta[property="${property}"]`);
+      if (!el) {
+        el = document.createElement('meta');
+        el.setAttribute('property', property);
+        document.head.appendChild(el);
+      }
+      el.setAttribute('content', content);
+    },
+
+    setCanonical: function (url) {
+      if (!url) return;
+      let el = document.querySelector('link[rel="canonical"]');
+      if (!el) {
+        el = document.createElement('link');
+        el.setAttribute('rel', 'canonical');
+        document.head.appendChild(el);
+      }
+      el.setAttribute('href', url);
+    },
+
+    setArticleJsonLd: function (data) {
+      let el = document.getElementById('schema-article-jsonld');
+      if (!el) {
+        el = document.createElement('script');
+        el.setAttribute('type', 'application/ld+json');
+        el.setAttribute('id', 'schema-article-jsonld');
+        document.head.appendChild(el);
+      }
+
+      const jsonLd = {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": data.headline,
+        "description": data.description,
+        "image": data.image,
+        "author": {
+          "@type": "Person",
+          "name": data.authorName || "Editorial Desk"
+        },
+        "publisher": {
+          "@type": "Organization",
+          "name": "Policytells",
+          "url": "https://policytells.in/",
+          "logo": {
+            "@type": "ImageObject",
+            "url": "https://policytells.in/images/parliament-hero.jpg"
+          }
+        },
+        "datePublished": data.datePublished,
+        "dateModified": data.dateModified || data.datePublished,
+        "mainEntityOfPage": data.url
+      };
+
+      el.textContent = JSON.stringify(jsonLd);
+    },
 
     // --- Active Navigation Highlighting ---
     initNavigation: function () {
@@ -337,7 +408,7 @@
       });
     },
 
-    // --- Card Generator ---
+    // --- Card Generator with Alt Text ---
     createCardHTML: function (article) {
       const catName = this.getCategoryName(article.category);
       const readTime = this.calcReadTime(article.content);
@@ -420,6 +491,7 @@
       sectionsContainer.innerHTML = dynamicHTML;
     },
 
+    // --- Article Page Renderer with Dynamic SEO Metadata & Article Schema.org JSON-LD ---
     initArticlePage: async function () {
       const articleContainer = document.getElementById('single-article-content');
       const relatedContainer = document.getElementById('related-articles-grid');
@@ -443,12 +515,42 @@
         return;
       }
 
-      document.title = `${article.title} — PolicyTells Magazine`;
+      // 1. Dynamic Page Title
+      document.title = `${article.title} | Policytells`;
 
       const catName = this.getCategoryName(article.category);
       const dateStr = this.formatDate(article.created_at);
       const readTime = this.calcReadTime(article.content);
-      const imgUrl = article.image_url || 'images/parliament-hero.jpg';
+      const imgUrl = article.image_url || 'https://policytells.in/images/parliament-hero.jpg';
+      const articleFullUrl = `https://policytells.in/article.html?slug=${encodeURIComponent(article.slug || article.id)}`;
+
+      // 2. Dynamic SEO Meta Tags & Canonical
+      this.setCanonical(articleFullUrl);
+      this.setMeta('description', article.excerpt || article.title);
+
+      // Open Graph Tags
+      this.setMetaProperty('og:title', `${article.title} | Policytells`);
+      this.setMetaProperty('og:description', article.excerpt || article.title);
+      this.setMetaProperty('og:url', articleFullUrl);
+      this.setMetaProperty('og:image', imgUrl);
+      this.setMetaProperty('og:type', 'article');
+
+      // Twitter Card Tags
+      this.setMeta('twitter:card', 'summary_large_image');
+      this.setMeta('twitter:title', `${article.title} | Policytells`);
+      this.setMeta('twitter:description', article.excerpt || article.title);
+      this.setMeta('twitter:image', imgUrl);
+
+      // 3. Dynamic Article Schema.org JSON-LD
+      this.setArticleJsonLd({
+        headline: article.title,
+        description: article.excerpt || article.title,
+        image: [imgUrl],
+        authorName: article.author || 'Editorial Desk',
+        datePublished: article.created_at,
+        dateModified: article.updated_at || article.created_at,
+        url: articleFullUrl
+      });
 
       let formattedBody = article.content || '';
       if (!formattedBody.includes('<p>') && !formattedBody.includes('<h')) {
@@ -461,7 +563,7 @@
 
       articleContainer.innerHTML = `
         <header class="article-reader-header">
-          <span class="card-category" style="font-size:0.8rem; letter-spacing:0.15em;">${this.escapeHTML(catName)}</span>
+          <a href="category.html?cat=${encodeURIComponent(article.category)}" class="card-category" style="font-size:0.8rem; letter-spacing:0.15em;">${this.escapeHTML(catName)}</a>
           <h1 class="article-reader-title">${this.escapeHTML(article.title)}</h1>
           ${article.excerpt ? `<p class="article-reader-subtitle">${this.escapeHTML(article.excerpt)}</p>` : ''}
           <div class="article-reader-meta">
@@ -496,6 +598,7 @@
       }
     },
 
+    // --- Category Page Renderer with Dynamic SEO Meta Tags ---
     initCategoryPage: async function () {
       const categoryTitleEl = document.getElementById('category-title');
       const categoryDescEl = document.getElementById('category-desc');
@@ -516,7 +619,20 @@
 
       if (categoryTitleEl) categoryTitleEl.textContent = catName;
       if (categoryDescEl) categoryDescEl.textContent = catDesc;
-      document.title = `${catName} — PolicyTells Magazine`;
+
+      // Dynamic SEO Meta Tags
+      document.title = `${catName} | Policytells`;
+      const catFullUrl = catSlug ? `https://policytells.in/category.html?cat=${encodeURIComponent(catSlug)}` : 'https://policytells.in/category.html';
+      this.setCanonical(catFullUrl);
+      this.setMeta('description', catDesc);
+
+      this.setMetaProperty('og:title', `${catName} | Policytells`);
+      this.setMetaProperty('og:description', catDesc);
+      this.setMetaProperty('og:url', catFullUrl);
+      this.setMetaProperty('og:image', 'https://policytells.in/images/parliament-hero.jpg');
+
+      this.setMeta('twitter:title', `${catName} | Policytells`);
+      this.setMeta('twitter:description', catDesc);
 
       gridContainer.innerHTML = '<div class="empty-state"><div class="spinner"></div></div>';
 
@@ -555,7 +671,7 @@
 
         try {
           if (this.supabase) {
-           const { error } = await this.supabase
+            const { error } = await this.supabase
   .from('contact_messages')
   .insert([{
     name,
@@ -564,6 +680,7 @@
     message,
     created_at: new Date().toISOString()
   }]);
+
 
             if (error) throw error;
           } else {
