@@ -1,4 +1,7 @@
 {
   "version": 2,
-  "cleanUrls": false
+  "cleanUrls": false,
+  "rewrites": [
+    { "source": "/sitemap.xml", "destination": "/api/sitemap" }
+  ]
 }
