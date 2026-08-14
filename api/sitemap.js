@@ -1,33 +1,3 @@
-chnage this piecce of code from app.js 
-
-
-
-const { error } = await this.supabase
-  .from('contact_messages')
-  .insert([{
-    name,
-    email,
-    subject,
-    message,
-    recipient: 'ithylene@zohomail.in',
-    created_at: new Date().toISOString()
-  }]);
-
-to 
-
-const { error } = await this.supabase
-  .from('contact_messages')
-  .insert([{
-    name,
-    email,
-    subject,
-    message,
-    created_at: new Date().toISOString()
-  }]);
-
-
-create sitemap.js in api folder ---------------------------------------------------------------------------------------
-
 const { createClient } = require("@supabase/supabase-js");
 
 const supabase = createClient(
@@ -85,7 +55,7 @@ module.exports = async (req, res) => {
     });
 
     const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
-  <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${urls.join("\n")}
 </urlset>`;
 
