@@ -5,7 +5,10 @@
  * article-specific Open Graph tags, title, description, canonical link, and image URL
  * in the INITIAL raw HTML response BEFORE client JavaScript runs.
  *
- * Route: /article.html?slug=ARTICLE_SLUG -> /api/article-ssr.js
+ * Primary Data Source: Supabase REST API (`articles` table).
+ * Fallback is triggered ONLY if Supabase returns 0 rows or is offline.
+ *
+ * Route: /article.html?slug=ARTICLE_SLUG -> /api/article-ssr.js (via Vercel routes)
  */
 
 const fs = require('fs');
@@ -30,6 +33,7 @@ module.exports = async function handler(req, res) {
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
 
+  // 1. PRIMARY DATA SOURCE: Query Supabase PostgREST API for published article matching slug
   if (slug && supabaseUrl && supabaseUrl !== 'YOUR_SUPABASE_URL' && supabaseAnonKey && supabaseAnonKey !== 'YOUR_SUPABASE_ANON_KEY') {
     try {
       const restEndpoint = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/articles?select=*&slug=eq.${encodeURIComponent(slug)}`;
@@ -46,7 +50,7 @@ module.exports = async function handler(req, res) {
       if (response.ok) {
         const data = await response.json();
         if (Array.isArray(data) && data.length > 0) {
-          article = data[0];
+          article = data[0]; // Real article found from Supabase!
         }
       }
     } catch (err) {
@@ -54,7 +58,7 @@ module.exports = async function handler(req, res) {
     }
   }
 
-  // Fallback sample dataset for local testing or when database env vars are placeholders
+  // 2. FALLBACK ONLY IF SUPABASE RETURNED NO ROWS OR ENVIRONMENT VARIABLES ARE PLACEHOLDERS
   if (!article && slug) {
     const samples = [
       {
@@ -64,6 +68,22 @@ module.exports = async function handler(req, res) {
         image_url: 'https://images.unsplash.com/photo-1457369804613-52c61a468e7d?auto=format&fit=crop&w=1200&q=80',
         author: 'Editorial Desk',
         created_at: '2026-08-11T10:00:00Z'
+      },
+      {
+        slug: 'red-terror-when-revolution-hides-behind-democracy',
+        title: "Red Terror: When Revolution Hides Behind Democracy",
+        excerpt: "A critical policy analysis examining democratic resilience, internal security challenges, and structural governance in affected regions.",
+        image_url: 'https://policytells.in/images/parliament-hero.jpg',
+        author: 'Arjun Swaminathan',
+        created_at: '2026-08-12T09:00:00Z'
+      },
+      {
+        slug: 'india-the-reservation-capital-of-the-world',
+        title: "India: The Reservation Capital of the World",
+        excerpt: "An analytical critique of affirmative action frameworks, demographic representations, and institutional quota policies in contemporary India.",
+        image_url: 'https://policytells.in/images/economy-hero.jpg',
+        author: 'Priya Ramachandran',
+        created_at: '2026-08-10T14:30:00Z'
       },
       {
         slug: 'architecture-of-parliamentary-reform-india',
@@ -97,9 +117,12 @@ module.exports = async function handler(req, res) {
   // Read template HTML
   let templateHtml = '';
   try {
-    const templatePath = path.join(__dirname, '..', 'article.html');
-    if (fs.existsSync(templatePath)) {
-      templateHtml = fs.readFileSync(templatePath, 'utf8');
+    const primaryPath = path.join(process.cwd(), 'article.html');
+    const fallbackPath = path.join(__dirname, '..', 'article.html');
+    if (fs.existsSync(primaryPath)) {
+      templateHtml = fs.readFileSync(primaryPath, 'utf8');
+    } else if (fs.existsSync(fallbackPath)) {
+      templateHtml = fs.readFileSync(fallbackPath, 'utf8');
     }
   } catch (e) {
     console.warn('Could not read article.html template:', e);

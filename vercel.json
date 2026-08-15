@@ -1,7 +1,9 @@
 {
   "version": 2,
   "cleanUrls": false,
-  "rewrites": [
-    { "source": "/sitemap.xml", "destination": "/api/sitemap" }
+  "routes": [
+    { "src": "/sitemap.xml", "dest": "/api/sitemap" },
+    { "src": "/article.html", "dest": "/api/article-ssr" },
+    { "handle": "filesystem" }
   ]
 }
