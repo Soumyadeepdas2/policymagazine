@@ -2,11 +2,8 @@
  * Vercel Serverless Function: Server-Side Pre-Rendering for Article Open Graph & Twitter Cards
  *
  * Ensures social media crawlers (Facebook, WhatsApp, Twitter, LinkedIn) receive pre-rendered,
- * article-specific Open Graph tags, title, description, canonical link, and image URL
+ * article-specific Open Graph tags, title, description, canonical link, and optimized 1200x630 image URL
  * in the INITIAL raw HTML response BEFORE client JavaScript runs.
- *
- * Primary Data Source: Supabase REST API (`articles` table).
- * Fallback is triggered ONLY if Supabase returns 0 rows or is offline.
  *
  * Route: /article.html?slug=ARTICLE_SLUG -> /api/article-ssr.js (via Vercel routes)
  */
@@ -24,6 +21,21 @@ function escapeXml(unsafe) {
     .replace(/'/g, '&apos;');
 }
 
+/**
+ * Dynamic ImageKit URL Optimizer for Open Graph & Social Sharing
+ * Appends tr=w-1200,h-630,fo-auto to optimize image payload (<300KB) and standardize 1200x630 dimensions.
+ */
+function getOptimizedOgImage(url) {
+  if (!url) return 'https://policytells.in/images/parliament-hero.jpg';
+  
+  if (url.includes('ik.imagekit.io') && !url.includes('tr=')) {
+    const separator = url.includes('?') ? '&' : '?';
+    return `${url}${separator}tr=w-1200,h-630,fo-auto`;
+  }
+  
+  return url;
+}
+
 module.exports = async function handler(req, res) {
   const domain = 'https://policytells.in';
   const slug = req.query.slug || req.query.id;
@@ -33,7 +45,6 @@ module.exports = async function handler(req, res) {
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
 
-  // 1. PRIMARY DATA SOURCE: Query Supabase PostgREST API for published article matching slug
   if (slug && supabaseUrl && supabaseUrl !== 'YOUR_SUPABASE_URL' && supabaseAnonKey && supabaseAnonKey !== 'YOUR_SUPABASE_ANON_KEY') {
     try {
       const restEndpoint = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/articles?select=*&slug=eq.${encodeURIComponent(slug)}`;
@@ -50,7 +61,7 @@ module.exports = async function handler(req, res) {
       if (response.ok) {
         const data = await response.json();
         if (Array.isArray(data) && data.length > 0) {
-          article = data[0]; // Real article found from Supabase!
+          article = data[0];
         }
       }
     } catch (err) {
@@ -58,32 +69,16 @@ module.exports = async function handler(req, res) {
     }
   }
 
-  // 2. FALLBACK ONLY IF SUPABASE RETURNED NO ROWS OR ENVIRONMENT VARIABLES ARE PLACEHOLDERS
+  // Fallback sample dataset if Supabase environment variables are placeholders
   if (!article && slug) {
     const samples = [
       {
         slug: 'from-sanskrit-to-sorry-i-dont-speak-that',
         title: "From Sanskrit to \"Sorry, I Don't Speak That\": Language Policy & Cultural Shift",
         excerpt: "An in-depth investigation into language policy, regional linguistic preservation, and shifting cultural standards across modern India.",
-        image_url: 'https://images.unsplash.com/photo-1457369804613-52c61a468e7d?auto=format&fit=crop&w=1200&q=80',
+        image_url: 'https://ik.imagekit.io/policytells/articles/language_war_seedgram_fO4sySuOc.jpeg',
         author: 'Editorial Desk',
         created_at: '2026-08-11T10:00:00Z'
-      },
-      {
-        slug: 'red-terror-when-revolution-hides-behind-democracy',
-        title: "Red Terror: When Revolution Hides Behind Democracy",
-        excerpt: "A critical policy analysis examining democratic resilience, internal security challenges, and structural governance in affected regions.",
-        image_url: 'https://policytells.in/images/parliament-hero.jpg',
-        author: 'Arjun Swaminathan',
-        created_at: '2026-08-12T09:00:00Z'
-      },
-      {
-        slug: 'india-the-reservation-capital-of-the-world',
-        title: "India: The Reservation Capital of the World",
-        excerpt: "An analytical critique of affirmative action frameworks, demographic representations, and institutional quota policies in contemporary India.",
-        image_url: 'https://policytells.in/images/economy-hero.jpg',
-        author: 'Priya Ramachandran',
-        created_at: '2026-08-10T14:30:00Z'
       },
       {
         slug: 'architecture-of-parliamentary-reform-india',
@@ -136,9 +131,12 @@ module.exports = async function handler(req, res) {
   const pageTitle = article ? `${article.title} | Policytells` : 'Article — Policytells';
   const pageDesc = article ? (article.excerpt || article.title) : 'An independent editorial magazine of longform policy analysis, governance insights, economics, and foreign policy.';
   const articleUrl = slug ? `${domain}/article.html?slug=${encodeURIComponent(slug)}` : `${domain}/article.html`;
-  const imageUrl = (article && article.image_url) ? article.image_url : `${domain}/images/parliament-hero.jpg`;
+  
+  // Apply dynamic ImageKit URL optimization
+  const rawImageUrl = (article && article.image_url) ? article.image_url : `${domain}/images/parliament-hero.jpg`;
+  const optimizedOgImage = getOptimizedOgImage(rawImageUrl);
 
-  // Construct Dynamic SEO Meta Head Section
+  // Construct Dynamic SEO Meta Head Section with explicit OG image specifications
   const seoHeadTags = `
   <title>${escapeXml(pageTitle)}</title>
   <meta name="description" content="${escapeXml(pageDesc)}">
@@ -150,13 +148,17 @@ module.exports = async function handler(req, res) {
   <meta property="og:description" content="${escapeXml(pageDesc)}">
   <meta property="og:type" content="article">
   <meta property="og:url" content="${escapeXml(articleUrl)}">
-  <meta property="og:image" content="${escapeXml(imageUrl)}">
+  <meta property="og:image" content="${escapeXml(optimizedOgImage)}">
+  <meta property="og:image:secure_url" content="${escapeXml(optimizedOgImage)}">
+  <meta property="og:image:type" content="image/jpeg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="${escapeXml(pageTitle)}">
   <meta name="twitter:description" content="${escapeXml(pageDesc)}">
-  <meta name="twitter:image" content="${escapeXml(imageUrl)}">
+  <meta name="twitter:image" content="${escapeXml(optimizedOgImage)}">
 
   ${article ? `
   <!-- Schema.org Article JSON-LD -->
@@ -166,7 +168,7 @@ module.exports = async function handler(req, res) {
     "@type": "Article",
     "headline": ${JSON.stringify(article.title)},
     "description": ${JSON.stringify(article.excerpt || article.title)},
-    "image": [${JSON.stringify(imageUrl)}],
+    "image": [${JSON.stringify(optimizedOgImage)}],
     "author": {
       "@type": "Person",
       "name": ${JSON.stringify(article.author || "Editorial Desk")}

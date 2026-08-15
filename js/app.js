@@ -1,7 +1,7 @@
 /**
  * PolicyTells — Political & Public Policy Magazine Engine
  * Features live typewriter animation for TELLS, live footer vision typewriter ("WE BELIEVE IN ..."),
- * dynamic SEO metadata, canonical URLs, Schema.org Article JSON-LD,
+ * dynamic SEO metadata, canonical URLs, ImageKit OG optimization, Schema.org Article JSON-LD,
  * category-based section rendering, and exact category navigation highlighting.
  */
 
@@ -29,6 +29,16 @@
     supabase: supabaseClient,
     currentHeroIndex: 0,
     heroSlides: [],
+
+    // --- Dynamic ImageKit OG Optimization Helper ---
+    getOptimizedOgImage: function (url) {
+      if (!url) return 'https://policytells.in/images/parliament-hero.jpg';
+      if (url.includes('ik.imagekit.io') && !url.includes('tr=')) {
+        const separator = url.includes('?') ? '&' : '?';
+        return `${url}${separator}tr=w-1200,h-630,fo-auto`;
+      }
+      return url;
+    },
 
     // --- Dynamic SEO Helpers ---
     setMeta: function (name, content) {
@@ -89,7 +99,7 @@
           "url": "https://policytells.in/",
           "logo": {
             "@type": "ImageObject",
-            "url": "https://policytells.in/images/parliament-hero.jpg"
+            "url": "https://policytells.in/images/favicon.png"
           }
         },
         "datePublished": data.datePublished,
@@ -521,31 +531,36 @@
       const catName = this.getCategoryName(article.category);
       const dateStr = this.formatDate(article.created_at);
       const readTime = this.calcReadTime(article.content);
-      const imgUrl = article.image_url || 'https://policytells.in/images/parliament-hero.jpg';
+      const rawImageUrl = article.image_url || 'https://policytells.in/images/parliament-hero.jpg';
+      const optimizedOgImage = this.getOptimizedOgImage(rawImageUrl);
       const articleFullUrl = `https://policytells.in/article.html?slug=${encodeURIComponent(article.slug || article.id)}`;
 
       // 2. Dynamic SEO Meta Tags & Canonical
       this.setCanonical(articleFullUrl);
       this.setMeta('description', article.excerpt || article.title);
 
-      // Open Graph Tags
+      // Open Graph Tags matching SSR
       this.setMetaProperty('og:title', `${article.title} | Policytells`);
       this.setMetaProperty('og:description', article.excerpt || article.title);
       this.setMetaProperty('og:url', articleFullUrl);
-      this.setMetaProperty('og:image', imgUrl);
+      this.setMetaProperty('og:image', optimizedOgImage);
+      this.setMetaProperty('og:image:secure_url', optimizedOgImage);
+      this.setMetaProperty('og:image:type', 'image/jpeg');
+      this.setMetaProperty('og:image:width', '1200');
+      this.setMetaProperty('og:image:height', '630');
       this.setMetaProperty('og:type', 'article');
 
       // Twitter Card Tags
       this.setMeta('twitter:card', 'summary_large_image');
       this.setMeta('twitter:title', `${article.title} | Policytells`);
       this.setMeta('twitter:description', article.excerpt || article.title);
-      this.setMeta('twitter:image', imgUrl);
+      this.setMeta('twitter:image', optimizedOgImage);
 
       // 3. Dynamic Article Schema.org JSON-LD
       this.setArticleJsonLd({
         headline: article.title,
         description: article.excerpt || article.title,
-        image: [imgUrl],
+        image: [optimizedOgImage],
         authorName: article.author || 'Editorial Desk',
         datePublished: article.created_at,
         dateModified: article.updated_at || article.created_at,
@@ -576,7 +591,7 @@
         </header>
 
         <div class="article-cover-hero">
-          <img src="${imgUrl}" alt="${this.escapeHTML(article.title)}">
+          <img src="${rawImageUrl}" alt="${this.escapeHTML(article.title)}">
         </div>
 
         <div class="article-text-body">
@@ -673,7 +688,7 @@
           if (this.supabase) {
             const { error } = await this.supabase
               .from('contact_messages')
-              .insert([{ name, email, subject, message,  created_at: new Date().toISOString() }]);
+              .insert([{ name, email, subject, message, created_at: new Date().toISOString() }]);
 
             if (error) throw error;
           } else {
