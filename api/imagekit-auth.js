@@ -124,7 +124,7 @@ module.exports = async function handler(req, res) {
   } else {
     // Local / offline testing fallback check
     if (accessToken === 'admin-access-token') {
-      authenticatedUser = { id: '16ce5847-98be-43d9-b726-57e8347bb6c', email: 'admin@policytells.in', role: 'authenticated' };
+      authenticatedUser = { id: '16ce5847-98be-43d9-b726-57e8347bbb6c', email: 'admin@policytells.in', role: 'authenticated' };
       supabaseTokenVerified = true;
     } else if (accessToken === 'non-admin-access-token') {
       authenticatedUser = { id: 'regular-user-uuid-1234', email: 'user@example.com', role: 'authenticated' };
@@ -150,7 +150,7 @@ module.exports = async function handler(req, res) {
   const extractedUserEmail = (userObj.email || '').toString().toLowerCase().trim();
 
   // 3. AUTHORIZATION CHECK
-  const expectedAdminUuid = '16ce5847-98be-43d9-b726-57e8347bb6c';
+  const expectedAdminUuid = '16ce5847-98be-43d9-b726-57e8347bbb6c';
   const envAdminUuid = (process.env.ADMIN_UUID || '').toString().toLowerCase().trim();
   const adminUuidEnvExists = Boolean(process.env.ADMIN_UUID);
 

@@ -1,6 +1,6 @@
 -- ==========================================================================
 -- PolicyTells Magazine - Hardened Supabase RLS Migration Script
--- Enforces strict Admin UUID (16ce5847-98be-43d9-b726-57e8347bb6c) authorization.
+-- Enforces strict Admin UUID (16ce5847-98be-43d9-b726-57e8347bbb6c) authorization.
 -- Revokes direct contact_messages INSERT for anon & authenticated roles.
 -- ==========================================================================
 
@@ -63,10 +63,10 @@ ON public.articles
 FOR ALL
 TO authenticated
 USING (
-  auth.uid() = '16ce5847-98be-43d9-b726-57e8347bb6c'::uuid
+  auth.uid() = '16ce5847-98be-43d9-b726-57e8347bbb6c'::uuid
 )
 WITH CHECK (
-  auth.uid() = '16ce5847-98be-43d9-b726-57e8347bb6c'::uuid
+  auth.uid() = '16ce5847-98be-43d9-b726-57e8347bbb6c'::uuid
 );
 
 -- --------------------------------------------------------------------------
@@ -88,5 +88,5 @@ ON public.contact_messages
 FOR SELECT
 TO authenticated
 USING (
-  auth.uid() = '16ce5847-98be-43d9-b726-57e8347bb6c'::uuid
+  auth.uid() = '16ce5847-98be-43d9-b726-57e8347bbb6c'::uuid
 );
