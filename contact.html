@@ -9,8 +9,8 @@
   <link rel="apple-touch-icon" href="/images/favicon.png">
   <link rel="stylesheet" href="css/style.css">
 
-  <!-- Cloudflare Turnstile CAPTCHA Script -->
-  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+  <!-- Cloudflare Turnstile CAPTCHA Script (Explicit Render Mode) -->
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
 
   <!-- Supabase JS Client -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -84,9 +84,9 @@
         <textarea id="contact-message" class="form-control" placeholder="Type your message here..." required></textarea>
       </div>
 
-      <!-- Cloudflare Turnstile CAPTCHA Widget -->
+      <!-- Cloudflare Turnstile CAPTCHA Widget (Explicit JS Render Target) -->
       <div class="form-group">
-        <div class="cf-turnstile" id="turnstile-widget" data-theme="dark"></div>
+        <div id="turnstile-widget" style="min-height: 65px;"></div>
       </div>
 
       <button type="submit" class="btn-submit" style="width:100%;">SEND MESSAGE</button>
