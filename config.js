@@ -14,7 +14,7 @@ window.POLICYTELLS_CONFIG = {
   // Cloudflare Turnstile Configuration
   TURNSTILE_SITE_KEY: (window.ENV && typeof window.ENV.TURNSTILE_SITE_KEY === 'string')
     ? window.ENV.TURNSTILE_SITE_KEY
-    : "1x00000000000000000000AA",
+    : "",
 
   // Editorial Categories
   CATEGORIES: [
