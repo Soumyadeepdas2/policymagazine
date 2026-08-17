@@ -1,6 +1,6 @@
 /**
  * PolicyTells - Admin Portal Controller
- * Manages Supabase Auth, Article CRUD, ImageKit upload integration, and Contact Messages.
+ * Manages Supabase Auth, Article CRUD, ImageKit upload integration with Bearer Token Auth, and Contact Messages.
  */
 
 (function () {
@@ -40,10 +40,9 @@
           return false;
         }
       }
-      // Demo mode session fallback
       const demoSession = sessionStorage.getItem('pt_demo_admin');
       if (demoSession === 'true') {
-        return { email: 'admin@policytells.org' };
+        return { email: 'admin@policytells.in' };
       }
       return false;
     },
@@ -56,7 +55,7 @@
       }
       const userEmailEl = document.getElementById('admin-user-email');
       if (userEmailEl) {
-        userEmailEl.textContent = user.email || 'Admin User';
+        userEmailEl.textContent = user.email || 'admin@policytells.in';
       }
       return user;
     },
@@ -70,9 +69,9 @@
         if (error) throw error;
         return data;
       } else {
-        // Demo mode login
         sessionStorage.setItem('pt_demo_admin', 'true');
-        return { user: { email: email || 'admin@policytells.org' } };
+        sessionStorage.setItem('pt_demo_token', 'demo-admin-access-token');
+        return { user: { email: email || 'admin@policytells.in' } };
       }
     },
 
@@ -81,21 +80,50 @@
         await this.supabase.auth.signOut();
       }
       sessionStorage.removeItem('pt_demo_admin');
+      sessionStorage.removeItem('pt_demo_token');
       window.location.href = 'login.html';
     },
 
-    // --- ImageKit Auth & Upload Integration ---
+    // --- Secure ImageKit Auth & Upload Integration ---
     getImageKitAuthParameters: async function () {
       try {
-        const response = await fetch('/api/imagekit-auth');
-        if (!response.ok) {
-          throw new Error(`Auth endpoint returned HTTP ${response.status}`);
+        let accessToken = null;
+
+        if (this.supabase) {
+          const { data: { session } } = await this.supabase.auth.getSession();
+          if (session) {
+            accessToken = session.access_token;
+          }
+        } else {
+          accessToken = sessionStorage.getItem('pt_demo_token') || 'demo-admin-access-token';
         }
+
+        if (!accessToken) {
+          throw new Error('Authentication required. No active admin session found. Please sign in again.');
+        }
+
+        const response = await fetch('/api/imagekit-auth', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.status === 401) {
+          throw new Error('Authentication failed (HTTP 401). Please sign in to PolicyTells admin portal again.');
+        } else if (response.status === 403) {
+          throw new Error('Access denied (HTTP 403). Your account is not authorized for image uploads.');
+        } else if (!response.ok) {
+          const errJson = await response.json().catch(() => ({}));
+          throw new Error(errJson.error || `ImageKit auth server returned HTTP ${response.status}`);
+        }
+
         const data = await response.json();
         return data; // { token, expire, signature }
       } catch (err) {
         console.error('Failed to get ImageKit auth params:', err);
-        throw new Error('Could not connect to ImageKit auth serverless function /api/imagekit-auth. Make sure Vercel environment variables are set.');
+        throw err;
       }
     },
 
@@ -116,7 +144,7 @@
         throw new Error('IMAGEKIT_PUBLIC_KEY is not configured in environment variables.');
       }
 
-      // Step 1: Get signature, token, expire from Vercel serverless function /api/imagekit-auth
+      // Step 1: Get signature, token, expire from authenticated Vercel serverless function /api/imagekit-auth
       const authParams = await this.getImageKitAuthParameters();
 
       // Step 2: Upload directly from browser to ImageKit API
@@ -188,7 +216,6 @@
       }
 
       if (articles.length === 0) {
-        // Use local & sample articles
         articles = window.PolicyTellsApp ? window.PolicyTellsApp.getCombinedArticles() : cfg.SAMPLE_ARTICLES;
       }
 
@@ -205,10 +232,10 @@
         return `
           <tr>
             <td>
-              <strong style="font-size:0.95rem; display:block;">${this.escapeHTML(art.title)}</strong>
-              <span style="font-size:0.75rem; color:var(--color-text-light);">Slug: /article.html?slug=${this.escapeHTML(art.slug || art.id)}</span>
+              <strong style="font-size:0.95rem; display:block; color:#FFF;">${this.escapeHTML(art.title)}</strong>
+              <span style="font-size:0.75rem; color:var(--text-muted);">Slug: /article.html?slug=${this.escapeHTML(art.slug || art.id)}</span>
             </td>
-            <td><span class="category-badge">${this.escapeHTML(art.category || 'General')}</span></td>
+            <td><span class="card-category">${this.escapeHTML(art.category || 'General')}</span></td>
             <td>${this.escapeHTML(art.author || 'Editorial Desk')}</td>
             <td>
               <span class="status-pill ${isPub ? 'published' : 'draft'}">${isPub ? 'Published' : 'Draft'}</span>
@@ -216,11 +243,11 @@
             </td>
             <td>${dateStr}</td>
             <td>
-              <div class="actions-cell">
-                <a href="editor.html?id=${art.id}" class="btn btn-secondary btn-sm">Edit</a>
-                <button onclick="PolicyTellsAdmin.togglePublish('${art.id}', ${!isPub})" class="btn btn-secondary btn-sm">${isPub ? 'Unpublish' : 'Publish'}</button>
-                <button onclick="PolicyTellsAdmin.toggleFeature('${art.id}', ${!isFeat})" class="btn btn-secondary btn-sm">${isFeat ? 'Unfeature' : 'Feature'}</button>
-                <button onclick="PolicyTellsAdmin.deleteArticle('${art.id}')" class="btn btn-danger btn-sm">Delete</button>
+              <div style="display:flex; gap:0.4rem;">
+                <a href="editor.html?id=${art.id}" class="btn-secondary" style="padding:0.25rem 0.6rem; font-size:0.7rem;">Edit</a>
+                <button onclick="PolicyTellsAdmin.togglePublish('${art.id}', ${!isPub})" class="btn-secondary" style="padding:0.25rem 0.6rem; font-size:0.7rem;">${isPub ? 'Unpublish' : 'Publish'}</button>
+                <button onclick="PolicyTellsAdmin.toggleFeature('${art.id}', ${!isFeat})" class="btn-secondary" style="padding:0.25rem 0.6rem; font-size:0.7rem;">${isFeat ? 'Unfeature' : 'Feature'}</button>
+                <button onclick="PolicyTellsAdmin.deleteArticle('${art.id}')" class="btn-secondary" style="padding:0.25rem 0.6rem; font-size:0.7rem; border-color:rgba(239,68,68,0.5); color:#F87171 !important;">Delete</button>
               </div>
             </td>
           </tr>
@@ -254,7 +281,7 @@
       }
 
       if (messages.length === 0) {
-        container.innerHTML = '<tr><td colspan="5" class="text-center" style="padding:1.5rem; color:var(--color-text-muted);">No contact messages received yet.</td></tr>';
+        container.innerHTML = '<tr><td colspan="5" class="text-center" style="padding:1.5rem; color:var(--text-muted);">No contact messages received yet.</td></tr>';
         return;
       }
 
@@ -262,7 +289,7 @@
         const dateStr = window.PolicyTellsApp ? window.PolicyTellsApp.formatDate(msg.created_at) : new Date(msg.created_at).toLocaleDateString();
         return `
           <tr>
-            <td><strong>${this.escapeHTML(msg.name)}</strong><br><small>${this.escapeHTML(msg.email)}</small></td>
+            <td><strong style="color:#FFF;">${this.escapeHTML(msg.name)}</strong><br><small style="color:var(--text-muted);">${this.escapeHTML(msg.email)}</small></td>
             <td>${this.escapeHTML(msg.subject)}</td>
             <td style="max-width:300px; white-space:normal;">${this.escapeHTML(msg.message)}</td>
             <td>${dateStr}</td>
@@ -287,7 +314,6 @@
           return;
         }
       } else {
-        // Local state update
         this.updateLocalArticle(articleId, { published: newStatus });
       }
 
@@ -348,7 +374,6 @@
       if (idx !== -1) {
         localArticles[idx] = { ...localArticles[idx], ...fields, updated_at: new Date().toISOString() };
       } else {
-        // Copy from sample articles into local storage override
         const sample = (cfg.SAMPLE_ARTICLES || []).find(a => String(a.id) === String(id));
         if (sample) {
           localArticles.push({ ...sample, ...fields, updated_at: new Date().toISOString() });
@@ -380,12 +405,10 @@
 
       if (!editorForm) return;
 
-      // Populate category options
       if (categorySelect) {
         categorySelect.innerHTML = (cfg.CATEGORIES || []).map(cat => `<option value="${cat.id}">${cat.name}</option>`).join('');
       }
 
-      // Check if Editing existing article
       const urlParams = new URLSearchParams(window.location.search);
       const articleId = urlParams.get('id');
 
@@ -400,10 +423,9 @@
         if (editorHeading) editorHeading.textContent = 'Create New Article';
       }
 
-      // Auto-generate slug from title
       if (titleInput && slugInput) {
         titleInput.addEventListener('input', () => {
-          if (!articleId) { // Only auto-slugify on create
+          if (!articleId) {
             slugInput.value = titleInput.value
               .toLowerCase()
               .replace(/[^a-z0-9\s-]/g, '')
@@ -413,7 +435,6 @@
         });
       }
 
-      // ImageKit File Upload Handler
       if (imageFileInput) {
         imageFileInput.addEventListener('change', async (e) => {
           const file = e.target.files[0];
@@ -439,7 +460,6 @@
         });
       }
 
-      // Image URL manual change preview
       if (imageUrlInput && previewImgEl) {
         imageUrlInput.addEventListener('input', () => {
           if (imageUrlInput.value.trim()) {
@@ -451,7 +471,6 @@
         });
       }
 
-      // Editor Submit Handler
       editorForm.addEventListener('submit', async (e) => {
         e.preventDefault();
 
@@ -505,7 +524,6 @@
               if (error) throw error;
             }
           } else {
-            // Local storage fallback for demo
             if (articleId) {
               this.updateLocalArticle(articleId, articleData);
             } else {
@@ -592,7 +610,6 @@
     }
   };
 
-  // Auto Init Admin Modules based on page
   document.addEventListener('DOMContentLoaded', () => {
     const page = window.location.pathname.split('/').pop();
 
