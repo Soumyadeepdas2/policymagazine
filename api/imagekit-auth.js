@@ -1,12 +1,17 @@
 /**
  * Vercel Serverless Function: Secure ImageKit Authentication Parameters Generator
+ * Includes Safe Diagnostic Details for Live Production Authorization Debugging.
  *
- * Implements strict SERVER-SIDE Authentication & Authorization via Supabase Auth.
- * Authorizes strictly the Admin UUID: 16ce5847-98be-43d9-b726-57e8347bb6c.
- * IMAGEKIT_PRIVATE_KEY MUST NEVER BE hardcoded or exposed to the frontend.
+ * DEBUG VERSION: "2026-08-17-debug-1"
+ *
+ * EXPLICIT SECURITY NOTICE:
+ * NO access_token, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, TURNSTILE_SECRET_KEY,
+ * or IMAGEKIT_PRIVATE_KEY is EVER exposed in response output.
  */
 
 const crypto = require('crypto');
+
+const IMAGEKIT_AUTH_DEBUG_VERSION = "2026-08-17-debug-1";
 
 module.exports = async function handler(req, res) {
   const origin = req.headers.origin || '';
@@ -35,13 +40,29 @@ module.exports = async function handler(req, res) {
 
   // 1. Extract Bearer Token from Authorization Header
   const authHeader = req.headers.authorization || '';
-  if (!authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Authentication required. Authorization Bearer token missing.' });
+  const authHeaderReceived = Boolean(authHeader && authHeader.startsWith('Bearer '));
+
+  if (!authHeaderReceived) {
+    return res.status(401).json({
+      error: 'Authentication required. Authorization Bearer token missing.',
+      debug: {
+        version: IMAGEKIT_AUTH_DEBUG_VERSION,
+        authHeaderReceived: false,
+        supabaseTokenVerified: false
+      }
+    });
   }
 
   const accessToken = authHeader.substring(7).trim();
   if (!accessToken) {
-    return res.status(401).json({ error: 'Authentication required. Empty access token provided.' });
+    return res.status(401).json({
+      error: 'Authentication required. Empty access token provided.',
+      debug: {
+        version: IMAGEKIT_AUTH_DEBUG_VERSION,
+        authHeaderReceived: true,
+        supabaseTokenVerified: false
+      }
+    });
   }
 
   const supabaseUrl = process.env.SUPABASE_URL;
@@ -49,11 +70,18 @@ module.exports = async function handler(req, res) {
   const privateKey = process.env.IMAGEKIT_PRIVATE_KEY || 'test_private_key_fallback';
 
   if (!privateKey) {
-    return res.status(500).json({ error: 'IMAGEKIT_PRIVATE_KEY environment variable is missing on Vercel server.' });
+    return res.status(500).json({
+      error: 'IMAGEKIT_PRIVATE_KEY environment variable is missing on server.',
+      debug: {
+        version: IMAGEKIT_AUTH_DEBUG_VERSION,
+        authHeaderReceived: true
+      }
+    });
   }
 
-  // 2. SERVER-SIDE AUTHENTICATION & AUTHORIZATION VERIFICATION VIA SUPABASE
+  // 2. SERVER-SIDE AUTHENTICATION VIA SUPABASE AUTH
   let authenticatedUser = null;
+  let supabaseTokenVerified = false;
 
   if (supabaseUrl && supabaseUrl !== 'YOUR_SUPABASE_URL' && supabaseAnonKey && supabaseAnonKey !== 'YOUR_SUPABASE_ANON_KEY') {
     try {
@@ -69,46 +97,86 @@ module.exports = async function handler(req, res) {
       });
 
       if (!userResponse.ok) {
-        return res.status(401).json({ error: 'Invalid or expired Supabase authentication session.' });
+        return res.status(401).json({
+          error: 'Invalid or expired Supabase authentication session.',
+          debug: {
+            version: IMAGEKIT_AUTH_DEBUG_VERSION,
+            authHeaderReceived: true,
+            supabaseTokenVerified: false,
+            supabaseHttpStatus: userResponse.status
+          }
+        });
       }
 
       authenticatedUser = await userResponse.json();
+      supabaseTokenVerified = true;
     } catch (err) {
       console.error('Error verifying Supabase access token:', err);
-      return res.status(500).json({ error: 'Failed to verify authentication credentials with Supabase server.' });
+      return res.status(500).json({
+        error: 'Failed to verify authentication credentials with Supabase server.',
+        debug: {
+          version: IMAGEKIT_AUTH_DEBUG_VERSION,
+          authHeaderReceived: true,
+          supabaseTokenVerified: false
+        }
+      });
     }
   } else {
-    // Testing / fallback check
+    // Local / offline testing fallback check
     if (accessToken === 'admin-access-token') {
       authenticatedUser = { id: '16ce5847-98be-43d9-b726-57e8347bb6c', email: 'admin@policytells.in', role: 'authenticated' };
+      supabaseTokenVerified = true;
     } else if (accessToken === 'non-admin-access-token') {
       authenticatedUser = { id: 'regular-user-uuid-1234', email: 'user@example.com', role: 'authenticated' };
+      supabaseTokenVerified = true;
     }
   }
 
   if (!authenticatedUser) {
-    return res.status(401).json({ error: 'Authentication failed. Invalid user session.' });
+    return res.status(401).json({
+      error: 'Authentication failed. Invalid user session.',
+      debug: {
+        version: IMAGEKIT_AUTH_DEBUG_VERSION,
+        authHeaderReceived: true,
+        supabaseTokenVerified: false
+      }
+    });
   }
 
-  // Robust extraction of user object, id, and email (handles GoTrue root, { user: ... }, or { data: { user: ... } })
+  // Robust extraction of user object, id, and email
   const userObj = authenticatedUser.user || authenticatedUser.data?.user || authenticatedUser;
-  const userId = (userObj.id || userObj.sub || '').toString().toLowerCase().trim();
-  const userEmail = (userObj.email || '').toString().toLowerCase().trim();
+  const rawUserId = userObj.id || userObj.sub || null;
+  const extractedUserId = (rawUserId || '').toString().toLowerCase().trim();
+  const extractedUserEmail = (userObj.email || '').toString().toLowerCase().trim();
 
-  // 3. STRICT ADMIN AUTHORIZATION CHECK
+  // 3. AUTHORIZATION CHECK
   const expectedAdminUuid = '16ce5847-98be-43d9-b726-57e8347bb6c';
   const envAdminUuid = (process.env.ADMIN_UUID || '').toString().toLowerCase().trim();
+  const adminUuidEnvExists = Boolean(process.env.ADMIN_UUID);
 
-  const isAuthorizedAdmin = 
-    (userId === expectedAdminUuid) ||
-    (envAdminUuid && userId === envAdminUuid) ||
-    (userEmail === 'admin@policytells.in');
+  const userIdMatchesExpected = (extractedUserId === expectedAdminUuid) || Boolean(envAdminUuid && extractedUserId === envAdminUuid);
+  const emailFallbackMatched = (extractedUserEmail === 'admin@policytells.in');
+
+  const isAuthorizedAdmin = Boolean(userIdMatchesExpected || emailFallbackMatched);
 
   if (!isAuthorizedAdmin) {
-    return res.status(403).json({ error: 'Access denied. Account is not authorized for administrative uploads.' });
+    return res.status(403).json({
+      error: 'Access denied. Account is not authorized for administrative uploads.',
+      debug: {
+        version: IMAGEKIT_AUTH_DEBUG_VERSION,
+        authHeaderReceived: true,
+        supabaseTokenVerified: true,
+        authenticatedUserId: rawUserId,
+        extractedUserId: extractedUserId,
+        expectedAdminUuid: expectedAdminUuid,
+        userIdMatchesExpected: userIdMatchesExpected,
+        adminUuidEnvExists: adminUuidEnvExists,
+        emailFallbackMatched: emailFallbackMatched
+      }
+    });
   }
 
-  // 4. SERVER-CONTROLLED TOKEN & EXPIRATION GENERATION
+  // 4. SERVER-CONTROLLED TOKEN & EXPIRATION GENERATION FOR AUTHORIZED ADMIN
   try {
     const token = crypto.randomUUID();
     const expire = Math.floor(Date.now() / 1000) + 1800; // 30 minutes
@@ -121,7 +189,18 @@ module.exports = async function handler(req, res) {
     return res.status(200).json({
       token: token,
       expire: Number(expire),
-      signature: signature
+      signature: signature,
+      debug: {
+        version: IMAGEKIT_AUTH_DEBUG_VERSION,
+        authHeaderReceived: true,
+        supabaseTokenVerified: true,
+        authenticatedUserId: rawUserId,
+        extractedUserId: extractedUserId,
+        expectedAdminUuid: expectedAdminUuid,
+        userIdMatchesExpected: userIdMatchesExpected,
+        adminUuidEnvExists: adminUuidEnvExists,
+        emailFallbackMatched: emailFallbackMatched
+      }
     });
   } catch (error) {
     console.error('ImageKit auth parameters generation error:', error);
