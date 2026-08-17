@@ -2,7 +2,7 @@
  * PolicyTells — Political & Public Policy Magazine Engine
  * Features live typewriter animation for TELLS, live footer vision typewriter ("WE BELIEVE IN ..."),
  * dynamic SEO metadata, canonical URLs, ImageKit OG optimization, Schema.org Article JSON-LD,
- * category-based section rendering, and exact category navigation highlighting.
+ * category-based section rendering, and Cloudflare Turnstile CAPTCHA contact verification.
  */
 
 (function () {
@@ -578,7 +578,7 @@
 
       articleContainer.innerHTML = `
         <header class="article-reader-header">
-          <a href="category.html?cat=${encodeURIComponent(article.category)}" class="card-category" style="font-size:0.8rem; letter-spacing:0.15em;">${this.escapeHTML(catName)}</a>
+          <span class="card-category" style="font-size:0.8rem; letter-spacing:0.15em;">${this.escapeHTML(catName)}</span>
           <h1 class="article-reader-title">${this.escapeHTML(article.title)}</h1>
           ${article.excerpt ? `<p class="article-reader-subtitle">${this.escapeHTML(article.excerpt)}</p>` : ''}
           <div class="article-reader-meta">
@@ -661,6 +661,7 @@
       gridContainer.innerHTML = articles.map(art => this.createCardHTML(art)).join('');
     },
 
+    // --- Contact Form Submission with Server-Side Turnstile Verification ---
     initContactForm: function () {
       const form = document.getElementById('contact-form');
       const alertBox = document.getElementById('contact-alert');
@@ -676,32 +677,54 @@
         const subject = document.getElementById('contact-subject').value.trim();
         const message = document.getElementById('contact-message').value.trim();
 
+        // Get Cloudflare Turnstile token
+        let turnstileToken = '';
+        if (typeof turnstile !== 'undefined') {
+          turnstileToken = turnstile.getResponse();
+        }
+
         if (!name || !email || !subject || !message) {
           this.showAlert(alertBox, 'ALL FIELDS ARE REQUIRED.', 'error');
           return;
         }
 
+        if (!turnstileToken) {
+          this.showAlert(alertBox, 'PLEASE COMPLETE THE CAPTCHA CHECK.', 'error');
+          return;
+        }
+
         submitBtn.disabled = true;
-        submitBtn.textContent = 'TRANSMITTING MESSAGE...';
+        submitBtn.textContent = 'VERIFYING CAPTCHA & TRANSMITTING...';
 
         try {
-          if (this.supabase) {
-            const { error } = await this.supabase
-              .from('contact_messages')
-              .insert([{ name, email, subject, message, created_at: new Date().toISOString() }]);
+          // Submit to serverless function /api/contact for server-side Turnstile verification & Supabase insert
+          const response = await fetch('/api/contact', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              name,
+              email,
+              subject,
+              message,
+              turnstileToken
+            })
+          });
 
-            if (error) throw error;
-          } else {
-            const localMsgs = JSON.parse(localStorage.getItem('pt_contact_messages') || '[]');
-            localMsgs.push({ id: Date.now(), name, email, subject, message, recipient: 'ithylene@zohomail.in', created_at: new Date().toISOString() });
-            localStorage.setItem('pt_contact_messages', JSON.stringify(localMsgs));
+          if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.error || 'Server rejected submission.');
           }
 
-          this.showAlert(alertBox, 'THANK YOU. YOUR MESSAGE HAS BEEN SUBMITTED TO THE EDITORIAL TEAM.', 'success');
+          this.showAlert(alertBox, 'THANK YOU. YOUR MESSAGE HAS BEEN VERIFIED AND SUBMITTED TO THE EDITORIAL TEAM.', 'success');
           form.reset();
+          if (typeof turnstile !== 'undefined') {
+            turnstile.reset();
+          }
         } catch (err) {
           console.error('Contact submit error:', err);
-          this.showAlert(alertBox, 'TRANSMISSION ERROR. PLEASE TRY AGAIN.', 'error');
+          this.showAlert(alertBox, err.message || 'TRANSMISSION ERROR. PLEASE TRY AGAIN.', 'error');
         } finally {
           submitBtn.disabled = false;
           submitBtn.textContent = 'SEND MESSAGE';

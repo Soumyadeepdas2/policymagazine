@@ -1,6 +1,7 @@
 -- ==========================================================================
--- PolicyTells Magazine - Supabase Database Schema & RLS Setup
--- Copy and run this script in your Supabase SQL Editor.
+-- PolicyTells Magazine - Hardened Supabase RLS Migration Script
+-- Enforces strict Admin UUID (16ce5847-98be-43d9-b726-57e8347bb6c) authorization.
+-- Revokes direct contact_messages INSERT for anon & authenticated roles.
 -- ==========================================================================
 
 -- 1. Create Articles Table
@@ -19,7 +20,7 @@ CREATE TABLE IF NOT EXISTS public.articles (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Index for fast category and slug lookups
+-- Indexes
 CREATE INDEX IF NOT EXISTS idx_articles_slug ON public.articles(slug);
 CREATE INDEX IF NOT EXISTS idx_articles_category ON public.articles(category);
 CREATE INDEX IF NOT EXISTS idx_articles_published ON public.articles(published);
@@ -38,36 +39,54 @@ CREATE TABLE IF NOT EXISTS public.contact_messages (
 -- ROW LEVEL SECURITY (RLS) POLICIES
 -- ==========================================================================
 
--- Enable RLS on both tables
 ALTER TABLE public.articles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.contact_messages ENABLE ROW LEVEL SECURITY;
 
+-- --------------------------------------------------------------------------
 -- ARTICLES POLICIES
--- Policy 1: Anyone (public) can read published articles
-CREATE POLICY "Public can read published articles"
+-- --------------------------------------------------------------------------
+
+-- Drop old policies
+DROP POLICY IF EXISTS "Public can read published articles" ON public.articles;
+DROP POLICY IF EXISTS "Admin full access to articles" ON public.articles;
+DROP POLICY IF EXISTS "Public read published articles" ON public.articles;
+
+-- Policy 1: Anonymous AND non-admin authenticated users can SELECT published articles ONLY
+CREATE POLICY "Public read published articles"
 ON public.articles
 FOR SELECT
 USING (published = true);
 
--- Policy 2: Authenticated admin users can perform all operations (Create, Read, Update, Delete)
+-- Policy 2: Admin user ONLY (checked strictly via auth.uid()) has full CRUD access to all articles
 CREATE POLICY "Admin full access to articles"
 ON public.articles
 FOR ALL
 TO authenticated
-USING (true)
-WITH CHECK (true);
+USING (
+  auth.uid() = '16ce5847-98be-43d9-b726-57e8347bb6c'::uuid
+)
+WITH CHECK (
+  auth.uid() = '16ce5847-98be-43d9-b726-57e8347bb6c'::uuid
+);
 
+-- --------------------------------------------------------------------------
 -- CONTACT MESSAGES POLICIES
--- Policy 1: Anyone can submit a contact message
-CREATE POLICY "Public can insert contact messages"
-ON public.contact_messages
-FOR INSERT
-TO public
-WITH CHECK (true);
+-- --------------------------------------------------------------------------
 
--- Policy 2: Only authenticated admin users can read contact messages
-CREATE POLICY "Admin can view contact messages"
+-- Drop old policies
+DROP POLICY IF EXISTS "Public can insert contact messages" ON public.contact_messages;
+DROP POLICY IF EXISTS "Admin can view contact messages" ON public.contact_messages;
+DROP POLICY IF EXISTS "Server contact insert" ON public.contact_messages;
+DROP POLICY IF EXISTS "Admin view contact messages" ON public.contact_messages;
+
+-- Direct INSERT on contact_messages is DENIED for both anon and authenticated roles.
+-- Serverless function /api/contact uses SUPABASE_SERVICE_ROLE_KEY to insert after CAPTCHA verification.
+
+-- Policy 1: Admin user ONLY (checked strictly via auth.uid()) can SELECT contact messages
+CREATE POLICY "Admin view contact messages"
 ON public.contact_messages
 FOR SELECT
 TO authenticated
-USING (true);
+USING (
+  auth.uid() = '16ce5847-98be-43d9-b726-57e8347bb6c'::uuid
+);

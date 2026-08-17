@@ -2,6 +2,7 @@
  * Vercel Serverless Function: Secure ImageKit Authentication Parameters Generator
  *
  * Implements strict SERVER-SIDE Authentication & Authorization via Supabase Auth.
+ * Authorizes strictly the Admin UUID: 16ce5847-98be-43d9-b726-57e8347bb6c (or admin@policytells.in).
  * IMAGEKIT_PRIVATE_KEY MUST NEVER BE hardcoded or exposed to the frontend.
  */
 
@@ -15,7 +16,6 @@ module.exports = async function handler(req, res) {
     'http://127.0.0.1:3000'
   ];
 
-  // Restrict CORS to allowed PolicyTells origins
   if (allowedOrigins.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
   } else {
@@ -78,9 +78,11 @@ module.exports = async function handler(req, res) {
       return res.status(500).json({ error: 'Failed to verify authentication credentials with Supabase server.' });
     }
   } else {
-    // Local / Demo mode fallback when database env vars are placeholders
-    if (accessToken === 'demo-admin-access-token' || accessToken.length > 10) {
-      authenticatedUser = { email: 'admin@policytells.in', role: 'authenticated' };
+    // Testing check
+    if (accessToken === 'admin-access-token') {
+      authenticatedUser = { id: '16ce5847-98be-43d9-b726-57e8347bb6c', email: 'admin@policytells.in', role: 'authenticated' };
+    } else if (accessToken === 'non-admin-access-token') {
+      authenticatedUser = { id: 'regular-user-uuid-1234', email: 'user@example.com', role: 'authenticated' };
     }
   }
 
@@ -88,20 +90,17 @@ module.exports = async function handler(req, res) {
     return res.status(401).json({ error: 'Authentication failed. Invalid user session.' });
   }
 
-  // 3. SERVER-SIDE AUTHORIZATION CHECK
-  // Verify that the authenticated user is an authorized admin
-  const isAuthorizedAdmin = authenticatedUser.email || (authenticatedUser.role === 'authenticated');
+  // 3. STRICT ADMIN AUTHORIZATION CHECK (Admin UUID or admin@policytells.in)
+  const isAuthorizedAdmin = (authenticatedUser.id === '16ce5847-98be-43d9-b726-57e8347bb6c') || (authenticatedUser.email === 'admin@policytells.in');
   if (!isAuthorizedAdmin) {
     return res.status(403).json({ error: 'Access denied. Account is not authorized for administrative uploads.' });
   }
 
   // 4. SERVER-CONTROLLED TOKEN & EXPIRATION GENERATION
-  // Server generates token and expiration strictly server-side (ignoring any query params)
   try {
     const token = crypto.randomUUID();
-    const expire = Math.floor(Date.now() / 1000) + 1800; // short-lived (30 minutes)
+    const expire = Math.floor(Date.now() / 1000) + 1800; // 30 minutes
 
-    // ImageKit HMAC-SHA1 signature calculation formula: token + expire signed with privateKey
     const signature = crypto
       .createHmac('sha1', privateKey)
       .update(token + expire)
