@@ -29,6 +29,9 @@
     supabase: supabaseClient,
     currentHeroIndex: 0,
     heroSlides: [],
+    turnstileWidgetId: null,
+    turnstileInitializing: false,
+    turnstileRendered: false,
 
     // --- Dynamic ImageKit OG Optimization Helper ---
     getOptimizedOgImage: function (url) {
@@ -661,12 +664,83 @@
       gridContainer.innerHTML = articles.map(art => this.createCardHTML(art)).join('');
     },
 
+    // --- Explicit Cloudflare Turnstile Initialization ---
+    initTurnstile: function () {
+      const widgetEl = document.getElementById('turnstile-widget');
+      if (!widgetEl) return;
+
+      // Ensure single initialization per contact form instance
+      if (this.turnstileRendered || this.turnstileInitializing) {
+        console.log('[PolicyTells Turnstile] Skip init: already rendered or currently initializing. Widget ID:', this.turnstileWidgetId);
+        return;
+      }
+
+      this.turnstileInitializing = true;
+      console.log('[PolicyTells Turnstile] Starting initialization...');
+
+      let attempts = 0;
+      const renderWidget = () => {
+        // Resolve site key strictly from window.ENV.TURNSTILE_SITE_KEY or cfg.TURNSTILE_SITE_KEY
+        let siteKey = null;
+        if (window.ENV && typeof window.ENV.TURNSTILE_SITE_KEY === 'string' && window.ENV.TURNSTILE_SITE_KEY.trim().length > 0) {
+          siteKey = window.ENV.TURNSTILE_SITE_KEY.trim();
+        } else if (cfg && typeof cfg.TURNSTILE_SITE_KEY === 'string' && cfg.TURNSTILE_SITE_KEY.trim().length > 0) {
+          siteKey = cfg.TURNSTILE_SITE_KEY.trim();
+        }
+
+        console.log('[PolicyTells Turnstile] Resolved sitekey type:', typeof siteKey, siteKey ? '(valid string)' : '(missing)');
+
+        // Wait for window.ENV to load over network (up to 30 attempts = 3 seconds)
+        if (!siteKey && (!window.ENV || !window.ENV.TURNSTILE_SITE_KEY) && attempts < 30) {
+          attempts++;
+          setTimeout(renderWidget, 100);
+          return;
+        }
+
+        // Fail clearly if no valid site key is available
+        if (!siteKey) {
+          console.error('[PolicyTells Turnstile] Initialization failed: TURNSTILE_SITE_KEY is not available in window.ENV.');
+          widgetEl.innerHTML = '<p style="color:#e8442e; font-size:0.85rem; padding:0.5rem 0;">CAPTCHA configuration unavailable. Please refresh or contact support.</p>';
+          this.turnstileInitializing = false;
+          return;
+        }
+
+        // Wait until Cloudflare Turnstile API is loaded
+        if (typeof window.turnstile !== 'undefined' && typeof window.turnstile.render === 'function') {
+          try {
+            widgetEl.innerHTML = '';
+
+            const widgetId = window.turnstile.render(widgetEl, {
+              sitekey: siteKey,
+              theme: 'dark'
+            });
+
+            this.turnstileWidgetId = widgetId;
+            this.turnstileRendered = true;
+            this.turnstileInitializing = false;
+
+            console.log('[PolicyTells Turnstile] turnstile.render() succeeded. Returned Widget ID:', widgetId);
+          } catch (err) {
+            console.error('[PolicyTells Turnstile] turnstile.render() failed:', err);
+            this.turnstileInitializing = false;
+          }
+        } else {
+          setTimeout(renderWidget, 100);
+        }
+      };
+
+      renderWidget();
+    },
+
     // --- Contact Form Submission with Server-Side Turnstile Verification ---
     initContactForm: function () {
       const form = document.getElementById('contact-form');
       const alertBox = document.getElementById('contact-alert');
 
       if (!form) return;
+
+      // Start Turnstile widget rendering once
+      this.initTurnstile();
 
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -677,15 +751,28 @@
         const subject = document.getElementById('contact-subject').value.trim();
         const message = document.getElementById('contact-message').value.trim();
 
-        // Get Cloudflare Turnstile token
-        let turnstileToken = '';
-        if (typeof turnstile !== 'undefined') {
-          turnstileToken = turnstile.getResponse();
-        }
-
         if (!name || !email || !subject || !message) {
           this.showAlert(alertBox, 'ALL FIELDS ARE REQUIRED.', 'error');
           return;
+        }
+
+        // Diagnostic log before getResponse
+        console.log('[PolicyTells Turnstile] getResponse() requested. Active Widget ID:', this.turnstileWidgetId, 'Widget Exists:', Boolean(this.turnstileWidgetId && this.turnstileRendered));
+
+        // Verify that Turnstile is initialized and has a valid widget ID
+        if (!this.turnstileRendered || !this.turnstileWidgetId) {
+          this.showAlert(alertBox, 'CAPTCHA IS STILL INITIALIZING. PLEASE WAIT A MOMENT AND TRY AGAIN.', 'error');
+          this.initTurnstile();
+          return;
+        }
+
+        let turnstileToken = '';
+        if (typeof window.turnstile !== 'undefined' && typeof window.turnstile.getResponse === 'function') {
+          try {
+            turnstileToken = window.turnstile.getResponse(this.turnstileWidgetId);
+          } catch (err) {
+            console.error('[PolicyTells Turnstile] Error calling getResponse():', err);
+          }
         }
 
         if (!turnstileToken) {
@@ -719,8 +806,13 @@
 
           this.showAlert(alertBox, 'THANK YOU. YOUR MESSAGE HAS BEEN VERIFIED AND SUBMITTED TO THE EDITORIAL TEAM.', 'success');
           form.reset();
-          if (typeof turnstile !== 'undefined') {
-            turnstile.reset();
+
+          if (typeof window.turnstile !== 'undefined' && typeof window.turnstile.reset === 'function' && this.turnstileWidgetId) {
+            try {
+              window.turnstile.reset(this.turnstileWidgetId);
+            } catch (err) {
+              console.warn('[PolicyTells Turnstile] Error resetting widget:', err);
+            }
           }
         } catch (err) {
           console.error('Contact submit error:', err);

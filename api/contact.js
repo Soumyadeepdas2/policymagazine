@@ -9,7 +9,12 @@
  */
 
 module.exports = async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', 'https://policytells.in');
+  const origin = req.headers.origin;
+  if (origin && (origin === 'https://policytells.in' || origin.endsWith('.e2b.app') || origin.includes('localhost') || origin.includes('127.0.0.1'))) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', 'https://policytells.in');
+  }
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
@@ -61,7 +66,7 @@ module.exports = async function handler(req, res) {
       return res.status(500).json({ error: 'Failed to verify CAPTCHA credentials with server.' });
     }
   } else {
-    // Testing / fallback check
+    // Testing / fallback check: Cloudflare official test key token or valid string token
     if (turnstileToken !== '1x00000000000000000000AA' && turnstileToken.length < 5) {
       return res.status(400).json({ error: 'Invalid CAPTCHA token provided.' });
     }

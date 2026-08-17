@@ -11,6 +11,11 @@ window.POLICYTELLS_CONFIG = {
   IMAGEKIT_PUBLIC_KEY: (window.ENV && window.ENV.IMAGEKIT_PUBLIC_KEY) || "YOUR_IMAGEKIT_PUBLIC_KEY",
   IMAGEKIT_URL_ENDPOINT: (window.ENV && window.ENV.IMAGEKIT_URL_ENDPOINT) || "https://ik.imagekit.io/your_imagekit_id",
 
+  // Cloudflare Turnstile Configuration
+  TURNSTILE_SITE_KEY: (window.ENV && typeof window.ENV.TURNSTILE_SITE_KEY === 'string')
+    ? window.ENV.TURNSTILE_SITE_KEY
+    : "",
+
   // Editorial Categories
   CATEGORIES: [
     { id: "politics", name: "Politics", description: "In-depth coverage of electoral systems, political strategy, and party dynamics." },
